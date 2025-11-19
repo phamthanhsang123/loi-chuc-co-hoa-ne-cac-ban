@@ -1,4 +1,8 @@
     <template>
+        <div v-if="successMessage"
+            class="fixed top-4 left-1/2 -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[9999] animate-fade-in">
+            {{ successMessage }}
+        </div>
         <div
             class="min-h-screen bg-gradient-to-br from-violet-100 via-purple-50 to-fuchsia-100 relative overflow-hidden">
             <!-- Animated background elements -->
@@ -450,6 +454,8 @@ interface Member {
     message: string;
 }
 
+const successMessage = ref("");
+
 const members = ref<Member[]>([]);
 const showMembers = ref(false);
 const isAddDialogOpen = ref(false);
@@ -532,16 +538,34 @@ async function handleSubmit() {
 
     const colRef = collection(db, "members");
 
-    // UPDATE
     if (editingMember.value) {
         await updateDoc(doc(db, "members", editingMember.value.id), data);
+        successMessage.value = "Cập nhật thành công!";
     } else {
-        // ADD NEW
         await addDoc(colRef, data);
+        successMessage.value = "Thêm thành viên thành công!";
     }
 
+    // Đóng form
     closeAddDialog();
+
+    // Thêm delay nhỏ cho mobile
+    setTimeout(() => {
+        isAddDialogOpen.value = false;
+    }, 150);
+
+    // Reset form
+    name.value = "";
+    message.value = "";
+    imagePreview.value = null;
+
+    // Ẩn thông báo
+    setTimeout(() => {
+        successMessage.value = "";
+    }, 2000);
 }
+
+
 
 // DELETE
 async function handleDeleteMember(member: Member) {
