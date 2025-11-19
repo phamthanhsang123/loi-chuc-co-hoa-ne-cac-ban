@@ -431,7 +431,7 @@ import {
     doc,
     onSnapshot,
 } from "firebase/firestore";
-import { db } from "./firebase"; // ❗ Bỏ storage
+import { db } from "./firebase";
 
 import {
     Users,
@@ -446,66 +446,76 @@ import {
     X,
 } from "lucide-vue-next";
 
-// Firestore data
 interface Member {
     id: string;
     name: string;
-    image: string | null; // base64
+    image: string | null;
     message: string;
 }
 
-// Convert file → base64 nén < 80KB
+/* -------------------------------------------------
+   🔥 HÀM NÉN ẢNH MỚI — HOÀN TOÀN FIX LỖI MOBILE
+--------------------------------------------------*/
 function compressImage(file: File): Promise<string> {
     return new Promise((resolve) => {
         const reader = new FileReader();
-        reader.onload = (r) => {
+        reader.readAsDataURL(file);
+
+        reader.onload = (e) => {
             const img = new Image();
-            img.src = r.target?.result as string;
 
             img.onload = () => {
                 const canvas = document.createElement("canvas");
                 const ctx = canvas.getContext("2d");
 
-                const MAX = 250; // giảm độ lớn ảnh
                 let w = img.width;
                 let h = img.height;
 
-                // Resize
-                if (w > h && w > MAX) {
-                    h = (h * MAX) / w;
-                    w = MAX;
-                } else if (h > MAX) {
-                    w = (w * MAX) / h;
-                    h = MAX;
+                // ⚡ Giảm độ phân giải xuống tối đa 600px (rất an toàn cho mobile)
+                const MAX_SIDE = 600;
+
+                if (w > h) {
+                    if (w > MAX_SIDE) {
+                        h = (h * MAX_SIDE) / w;
+                        w = MAX_SIDE;
+                    }
+                } else {
+                    if (h > MAX_SIDE) {
+                        w = (w * MAX_SIDE) / h;
+                        h = MAX_SIDE;
+                    }
                 }
 
                 canvas.width = w;
                 canvas.height = h;
-                ctx?.drawImage(img, 0, 0, w, h);
+                ctx!.drawImage(img, 0, 0, w, h);
 
-                let quality = 0.7;
+                // 🔥 Nén JPG cho đến khi <120KB
+                let quality = 0.75;
                 let base64 = canvas.toDataURL("image/jpeg", quality);
 
-                // Giảm chất lượng cho đến khi <80KB
-                while (base64.length / 1024 > 80 && quality > 0.4) {
+                while (base64.length / 1024 > 120 && quality > 0.3) {
                     quality -= 0.05;
                     base64 = canvas.toDataURL("image/jpeg", quality);
                 }
 
                 resolve(base64);
             };
-        };
 
-        reader.readAsDataURL(file);
+            img.src = e.target?.result as string;
+        };
     });
 }
 
-
+/* -------------------------------------------------
+   ▪ STATE
+--------------------------------------------------*/
 const successMessage = ref("");
 
 const members = ref<Member[]>([]);
 const showMembers = ref(false);
 const isAddDialogOpen = ref(false);
+
 const selectedMember = ref<Member | null>(null);
 const editingMember = ref<Member | null>(null);
 
@@ -519,9 +529,12 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 const flowers = ["🌸", "🌺", "🌻", "🌷", "🌹"];
 const bgSparkles = ref([]);
 
-// LOAD REAL-TIME
+/* -------------------------------------------------
+   🔄 REALTIME FIRESTORE
+--------------------------------------------------*/
 onMounted(() => {
     const colRef = collection(db, "members");
+
     onSnapshot(colRef, (snapshot) => {
         members.value = snapshot.docs.map((d) => ({
             id: d.id,
@@ -529,7 +542,6 @@ onMounted(() => {
         })) as Member[];
     });
 
-    // sparkles
     bgSparkles.value = Array.from({ length: 15 }).map(() => ({
         left: `${Math.random() * 100}%`,
         top: `${Math.random() * 100}%`,
@@ -539,7 +551,9 @@ onMounted(() => {
     }));
 });
 
-// RESET FORM WHEN EDITING OR CLOSE
+/* -------------------------------------------------
+   RESET FORM KHI EDIT HOẶC MỞ DIALOG
+--------------------------------------------------*/
 watch([editingMember, isAddDialogOpen], ([edit]) => {
     if (edit) {
         name.value = edit.name;
@@ -552,24 +566,33 @@ watch([editingMember, isAddDialogOpen], ([edit]) => {
     }
 });
 
-// UPLOAD IMAGE → convert base64 + compress 300px
+/* -------------------------------------------------
+   📤 HANDLE IMAGE UPLOAD
+--------------------------------------------------*/
 async function handleImageChange(e: Event) {
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
 
-    // Nén ảnh siêu nhẹ <80KB
+    // Nếu file không phải ảnh → chặn
+    if (!file.type.startsWith("image/")) {
+        alert("Ảnh không hợp lệ! Hãy chọn JPG hoặc PNG.");
+        return;
+    }
+
+    // Chuyển mọi định dạng → JPG (canvas tự convert)
     imagePreview.value = await compressImage(file);
 }
 
 
-// Remove image
 function handleRemoveImage() {
     imagePreview.value = null;
     if (fileInputRef.value) fileInputRef.value.value = "";
 }
 
-// SUBMIT FORM → ADD OR UPDATE
+/* -------------------------------------------------
+   📌 SUBMIT — ADD & UPDATE MEMBER
+--------------------------------------------------*/
 async function handleSubmit() {
     if (!name.value.trim() || !message.value.trim()) {
         alert("Vui lòng nhập đầy đủ!");
@@ -579,7 +602,7 @@ async function handleSubmit() {
     const data = {
         name: name.value.trim(),
         message: message.value.trim(),
-        image: imagePreview.value || null, // base64
+        image: imagePreview.value || null,
     };
 
     if (editingMember.value) {
@@ -592,7 +615,6 @@ async function handleSubmit() {
 
     closeAddDialog();
 
-    // reset form
     name.value = "";
     message.value = "";
     imagePreview.value = null;
@@ -601,7 +623,9 @@ async function handleSubmit() {
     setTimeout(() => (successMessage.value = ""), 2000);
 }
 
-// DELETE
+/* -------------------------------------------------
+   ❌ DELETE
+--------------------------------------------------*/
 async function handleDeleteMember(member: Member) {
     await deleteDoc(doc(db, "members", member.id));
     selectedMember.value = null;
@@ -613,6 +637,9 @@ function confirmDelete(member: Member) {
     }
 }
 
+/* -------------------------------------------------
+   UI ACTIONS
+--------------------------------------------------*/
 function handleEditClick(member: Member) {
     editingMember.value = member;
     isAddDialogOpen.value = true;
