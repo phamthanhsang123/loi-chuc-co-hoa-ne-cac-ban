@@ -431,7 +431,8 @@ import {
     doc,
     onSnapshot,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { storage, db } from "./firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 
 import {
     Users,
@@ -445,6 +446,8 @@ import {
     Upload,
     X,
 } from "lucide-vue-next";
+
+
 
 // Firestore data
 interface Member {
@@ -511,46 +514,8 @@ function handleImageChange(e: Event) {
     const file = input.files?.[0];
     if (!file) return;
 
-    const img = new Image();
-    const reader = new FileReader();
-
-    reader.onload = (r) => {
-        img.src = r.target?.result as string;
-
-        img.onload = () => {
-            const canvas = document.createElement("canvas");
-            const maxSize = 300;
-
-            let width = img.width;
-            let height = img.height;
-
-            // Resize giữ tỉ lệ
-            if (width > height) {
-                if (width > maxSize) {
-                    height = (height * maxSize) / width;
-                    width = maxSize;
-                }
-            } else {
-                if (height > maxSize) {
-                    width = (width * maxSize) / height;
-                    height = maxSize;
-                }
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-
-            const ctx = canvas.getContext("2d");
-            if (!ctx) return;
-
-            ctx.drawImage(img, 0, 0, width, height);
-
-            // Chuyển ảnh đã giảm kích thước thành base64
-            imagePreview.value = canvas.toDataURL("image/jpeg", 0.8);
-        };
-    };
-
-    reader.readAsDataURL(file);
+    // Preview nhanh
+    imagePreview.value = URL.createObjectURL(file);
 }
 
 
@@ -566,39 +531,37 @@ async function handleSubmit() {
         return;
     }
 
+    let imageUrl = editingMember.value?.image || null;
+
+    const file = fileInputRef.value?.files?.[0];
+
+    if (file) {
+        const imgRef = storageRef(storage, `members/${Date.now()}-${file.name}`);
+        await uploadBytes(imgRef, file);
+        imageUrl = await getDownloadURL(imgRef);
+    }
+
     const data = {
         name: name.value.trim(),
         message: message.value.trim(),
-        image: imagePreview.value || null,
+        image: imageUrl,
     };
-
-    const colRef = collection(db, "members");
 
     if (editingMember.value) {
         await updateDoc(doc(db, "members", editingMember.value.id), data);
         successMessage.value = "Cập nhật thành công!";
     } else {
-        await addDoc(colRef, data);
+        await addDoc(collection(db, "members"), data);
         successMessage.value = "Thêm thành viên thành công!";
     }
 
-    // Đóng form
     closeAddDialog();
-
-    // Thêm delay nhỏ cho mobile
-    setTimeout(() => {
-        isAddDialogOpen.value = false;
-    }, 150);
-
-    // Reset form
     name.value = "";
     message.value = "";
     imagePreview.value = null;
+    if (fileInputRef.value) fileInputRef.value.value = "";
 
-    // Ẩn thông báo
-    setTimeout(() => {
-        successMessage.value = "";
-    }, 2000);
+    setTimeout(() => (successMessage.value = ""), 2000);
 }
 
 
