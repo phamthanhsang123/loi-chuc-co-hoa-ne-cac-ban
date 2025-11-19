@@ -236,7 +236,7 @@
                                     <div class="mt-4 md:mt-6 text-center px-2">
                                         <p class="text-purple-700 text-xs md:text-sm italic line-clamp-2">"{{
                                             member.message
-                                        }}"</p>
+                                            }}"</p>
                                         <p class="text-purple-500 text-xs mt-2">Bấm để xem đầy đủ</p>
                                     </div>
                                 </div>
@@ -432,9 +432,6 @@ import {
     onSnapshot,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { storage } from "./firebase";
-import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
-
 
 import {
     Users,
@@ -455,12 +452,6 @@ interface Member {
     name: string;
     image: string | null;
     message: string;
-}
-
-async function uploadToStorage(file: File) {
-    const imgRef = storageRef(storage, `members/${Date.now()}-${file.name}`);
-    await uploadBytes(imgRef, file);
-    return await getDownloadURL(imgRef);
 }
 
 const successMessage = ref("");
@@ -520,10 +511,47 @@ function handleImageChange(e: Event) {
     const file = input.files?.[0];
     if (!file) return;
 
-    // Preview ảnh nhanh, không base64
-    imagePreview.value = URL.createObjectURL(file);
-}
+    const img = new Image();
+    const reader = new FileReader();
 
+    reader.onload = (r) => {
+        img.src = r.target?.result as string;
+
+        img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const maxSize = 300;
+
+            let width = img.width;
+            let height = img.height;
+
+            // Resize giữ tỉ lệ
+            if (width > height) {
+                if (width > maxSize) {
+                    height = (height * maxSize) / width;
+                    width = maxSize;
+                }
+            } else {
+                if (height > maxSize) {
+                    width = (width * maxSize) / height;
+                    height = maxSize;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return;
+
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Chuyển ảnh đã giảm kích thước thành base64
+            imagePreview.value = canvas.toDataURL("image/jpeg", 0.8);
+        };
+    };
+
+    reader.readAsDataURL(file);
+}
 
 
 function handleRemoveImage() {
@@ -538,17 +566,10 @@ async function handleSubmit() {
         return;
     }
 
-    let imageUrl = null;
-
-    // Nếu người dùng chọn file ảnh
-    if (fileInputRef.value?.files?.[0]) {
-        imageUrl = await uploadToStorage(fileInputRef.value.files[0]);
-    }
-
     const data = {
         name: name.value.trim(),
         message: message.value.trim(),
-        image: imageUrl,
+        image: imagePreview.value || null,
     };
 
     const colRef = collection(db, "members");
@@ -561,17 +582,24 @@ async function handleSubmit() {
         successMessage.value = "Thêm thành viên thành công!";
     }
 
+    // Đóng form
     closeAddDialog();
 
-    // Reset
+    // Thêm delay nhỏ cho mobile
+    setTimeout(() => {
+        isAddDialogOpen.value = false;
+    }, 150);
+
+    // Reset form
     name.value = "";
     message.value = "";
     imagePreview.value = null;
-    if (fileInputRef.value) fileInputRef.value.value = "";
 
-    setTimeout(() => (successMessage.value = ""), 2000);
+    // Ẩn thông báo
+    setTimeout(() => {
+        successMessage.value = "";
+    }, 2000);
 }
-
 
 
 
