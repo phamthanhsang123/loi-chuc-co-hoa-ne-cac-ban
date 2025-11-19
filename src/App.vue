@@ -511,12 +511,48 @@ function handleImageChange(e: Event) {
     const file = input.files?.[0];
     if (!file) return;
 
+    const img = new Image();
     const reader = new FileReader();
-    reader.onloadend = () => {
-        imagePreview.value = reader.result as string;
+
+    reader.onload = (r) => {
+        img.src = r.target?.result as string;
+
+        img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const maxSize = 300;
+
+            let width = img.width;
+            let height = img.height;
+
+            // Resize giữ tỉ lệ
+            if (width > height) {
+                if (width > maxSize) {
+                    height = (height * maxSize) / width;
+                    width = maxSize;
+                }
+            } else {
+                if (height > maxSize) {
+                    width = (width * maxSize) / height;
+                    height = maxSize;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return;
+
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Chuyển ảnh đã giảm kích thước thành base64
+            imagePreview.value = canvas.toDataURL("image/jpeg", 0.8);
+        };
     };
+
     reader.readAsDataURL(file);
 }
+
 
 function handleRemoveImage() {
     imagePreview.value = null;
