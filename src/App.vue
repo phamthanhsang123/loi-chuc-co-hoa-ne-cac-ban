@@ -432,6 +432,9 @@ import {
     onSnapshot,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { storage } from "./firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+
 
 import {
     Users,
@@ -452,6 +455,12 @@ interface Member {
     name: string;
     image: string | null;
     message: string;
+}
+
+async function uploadToStorage(file: File) {
+    const imgRef = storageRef(storage, `members/${Date.now()}-${file.name}`);
+    await uploadBytes(imgRef, file);
+    return await getDownloadURL(imgRef);
 }
 
 const successMessage = ref("");
@@ -511,47 +520,10 @@ function handleImageChange(e: Event) {
     const file = input.files?.[0];
     if (!file) return;
 
-    const img = new Image();
-    const reader = new FileReader();
-
-    reader.onload = (r) => {
-        img.src = r.target?.result as string;
-
-        img.onload = () => {
-            const canvas = document.createElement("canvas");
-            const maxSize = 300;
-
-            let width = img.width;
-            let height = img.height;
-
-            // Resize giữ tỉ lệ
-            if (width > height) {
-                if (width > maxSize) {
-                    height = (height * maxSize) / width;
-                    width = maxSize;
-                }
-            } else {
-                if (height > maxSize) {
-                    width = (width * maxSize) / height;
-                    height = maxSize;
-                }
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-
-            const ctx = canvas.getContext("2d");
-            if (!ctx) return;
-
-            ctx.drawImage(img, 0, 0, width, height);
-
-            // Chuyển ảnh đã giảm kích thước thành base64
-            imagePreview.value = canvas.toDataURL("image/jpeg", 0.8);
-        };
-    };
-
-    reader.readAsDataURL(file);
+    // Preview ảnh nhanh, không base64
+    imagePreview.value = URL.createObjectURL(file);
 }
+
 
 
 function handleRemoveImage() {
@@ -566,10 +538,17 @@ async function handleSubmit() {
         return;
     }
 
+    let imageUrl = null;
+
+    // Nếu người dùng chọn file ảnh
+    if (fileInputRef.value?.files?.[0]) {
+        imageUrl = await uploadToStorage(fileInputRef.value.files[0]);
+    }
+
     const data = {
         name: name.value.trim(),
         message: message.value.trim(),
-        image: imagePreview.value || null,
+        image: imageUrl,
     };
 
     const colRef = collection(db, "members");
@@ -582,24 +561,17 @@ async function handleSubmit() {
         successMessage.value = "Thêm thành viên thành công!";
     }
 
-    // Đóng form
     closeAddDialog();
 
-    // Thêm delay nhỏ cho mobile
-    setTimeout(() => {
-        isAddDialogOpen.value = false;
-    }, 150);
-
-    // Reset form
+    // Reset
     name.value = "";
     message.value = "";
     imagePreview.value = null;
+    if (fileInputRef.value) fileInputRef.value.value = "";
 
-    // Ẩn thông báo
-    setTimeout(() => {
-        successMessage.value = "";
-    }, 2000);
+    setTimeout(() => (successMessage.value = ""), 2000);
 }
+
 
 
 
