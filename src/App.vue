@@ -1,6 +1,9 @@
     <template>
         <div style="display:none">
-            <div id="music-player"></div>
+            <div id="music-player"
+                style="position: fixed; bottom:0; left:0; width:1px; height:1px; opacity:0; pointer-events:none;"></div>
+
+
         </div>
         <div v-if="!musicStarted"
             class="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex flex-col gap-6 items-center justify-center text-white">
@@ -488,16 +491,20 @@ let player: any = null;
 // Khi API YouTube sẵn sàng
 function onYouTubeIframeAPIReady() {
     player = new YT.Player("music-player", {
-        height: "0",
-        width: "0",
+        height: "1",
+        width: "1",
         videoId: "XDfzWrg37fA",
         playerVars: {
             autoplay: 0,
             controls: 0,
+            playsinline: 1,
+            rel: 0,
             loop: 1,
             playlist: "XDfzWrg37fA",
         },
     });
+
+
 }
 
 (window as any).onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
@@ -519,13 +526,9 @@ function startMusic() {
 
     setTimeout(() => {
         if (player) {
-            player.loadVideoById({
-                videoId: "XDfzWrg37fA",
-                startSeconds: 1,   // ⭐ Bắt đầu từ giây thứ 10
-            });
-
+            player.loadVideoById("XDfzWrg37fA");
             player.unMute();
-            player.setVolume(100);
+            player.playVideo();  // ⭐ cần cho mobile
         }
     }, 300);
 }
