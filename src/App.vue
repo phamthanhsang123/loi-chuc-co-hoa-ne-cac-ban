@@ -1,10 +1,36 @@
     <template>
+        <div style="display:none">
+            <div id="music-player"></div>
+        </div>
+        <div v-if="!musicStarted"
+            class="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex flex-col gap-6 items-center justify-center text-white">
+
+            <h1 class="text-3xl font-bold animate-pulse">
+                Hello Cô Hòa nhaaaaa 🌸
+            </h1>
+
+            <button @click="startMusic"
+                class="bg-gradient-to-r from-pink-500 to-purple-600 px-6 py-3 rounded-xl text-xl shadow-lg active:scale-95 transition">
+                Bắm vào đây đi cô...
+            </button>
+        </div>
+
+
+
+
+
         <div v-if="successMessage"
             class="fixed top-4 left-1/2 -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[9999] animate-fade-in">
             {{ successMessage }}
         </div>
         <div
             class="min-h-screen bg-gradient-to-br from-violet-100 via-purple-50 to-fuchsia-100 relative overflow-hidden">
+
+            <!-- FALLING FLOWERS -->
+            <div class="falling-flowers pointer-events-none">
+                <span v-for="n in 200" :key="n" class="flower">🌸</span>
+            </div>
+
             <!-- Animated background elements -->
             <div class="absolute inset-0 overflow-hidden pointer-events-none">
                 <div v-for="(s, i) in bgSparkles" :key="i" class="absolute" :style="{
@@ -236,7 +262,7 @@
                                     <div class="mt-4 md:mt-6 text-center px-2">
                                         <p class="text-purple-700 text-xs md:text-sm italic line-clamp-2">"{{
                                             member.message
-                                            }}"</p>
+                                        }}"</p>
                                         <p class="text-purple-500 text-xs mt-2">Bấm để xem đầy đủ</p>
                                     </div>
                                 </div>
@@ -392,7 +418,7 @@
                                 class="bg-white/80 backdrop-blur-sm rounded-2xl p-6 md:p-8 shadow-lg border border-purple-100">
                                 <div class="flex items-center gap-2 mb-4">
                                     <Heart class="text-pink-500 fill-pink-500" :size="24" />
-                                    <h3 class="text-lg md:text-xl text-purple-800">Lời chúc gửi Thầy/Cô</h3>
+                                    <h3 class="text-lg md:text-xl text-purple-800">Lời chúc gửi Cô</h3>
                                 </div>
 
                                 <div class="relative">
@@ -419,6 +445,7 @@
                 </div>
             </Transition>
         </div>
+
     </template>
 
 <script setup lang="ts">
@@ -451,6 +478,56 @@ interface Member {
     name: string;
     image: string | null;
     message: string;
+}
+
+
+//Nhạc Sếp
+const musicStarted = ref(false);
+let player: any = null;
+
+// Khi API YouTube sẵn sàng
+function onYouTubeIframeAPIReady() {
+    player = new YT.Player("music-player", {
+        height: "0",
+        width: "0",
+        videoId: "XDfzWrg37fA",
+        playerVars: {
+            autoplay: 0,
+            controls: 0,
+            loop: 1,
+            playlist: "XDfzWrg37fA",
+        },
+    });
+}
+
+(window as any).onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+
+
+onMounted(() => {
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.body.appendChild(tag);
+
+    // Nếu API load nhanh hơn → dựng player luôn
+    if ((window as any).YT && (window as any).YT.Player) {
+        onYouTubeIframeAPIReady();
+    }
+});
+// Khi người dùng bấm "bắt đầu"
+function startMusic() {
+    musicStarted.value = true;
+
+    setTimeout(() => {
+        if (player) {
+            player.loadVideoById({
+                videoId: "XDfzWrg37fA",
+                startSeconds: 1,   // ⭐ Bắt đầu từ giây thứ 10
+            });
+
+            player.unMute();
+            player.setVolume(100);
+        }
+    }, 300);
 }
 
 /* -------------------------------------------------
@@ -653,6 +730,31 @@ function openAddDialog() {
 function closeAddDialog() {
     isAddDialogOpen.value = false;
 }
+
+// 🌸 Random flower seeds
+const flowerCount = 25;
+onMounted(() => {
+    document.querySelectorAll(".flower").forEach((el) => {
+        const element = el as HTMLElement;
+
+        // Random vị trí + kích thước + tốc độ + độ lắc
+        element.style.setProperty("--x", Math.random() * 100 + "%");
+        element.style.setProperty("--size", 16 + Math.random() * 24 + "px");
+        element.style.setProperty("--opacity", (0.4 + Math.random() * 0.6).toString());
+        element.style.setProperty("--duration", (4 + Math.random() * 6) + "s");
+        element.style.setProperty("--sway", (Math.random() * 120 - 60) + "px");
+
+        // Random delay giúp hoa rơi liên tục, không rơi cùng lúc
+        element.style.animationDelay = (-Math.random() * 8) + "s";
+    });
+});
+
+
+
+
+
+
+
 </script>
 
 <style scoped>
@@ -876,5 +978,46 @@ function closeAddDialog() {
 
 .animate-rotate-slow-rev {
     animation: rotateSlowRev 15s linear infinite;
+}
+
+/* ---------------------------------------
+   🌸 HOA ĐÀO RƠI MƯỢT 60FPS — BẢN MỚI
+---------------------------------------- */
+
+.falling-flowers {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.flower {
+    position: absolute;
+    top: -10vh;
+    left: var(--x);
+    font-size: var(--size);
+    opacity: var(--opacity);
+    transform: translate3d(0, 0, 0);
+    animation: fallAndSway var(--duration) linear infinite;
+    will-change: transform;
+}
+
+/* Combines fall + sway + rotate in one animation */
+@keyframes fallAndSway {
+    0% {
+        transform: translate3d(0, -10vh, 0) rotate(0deg);
+        opacity: 1;
+    }
+
+    50% {
+        transform: translate3d(var(--sway), 50vh, 0) rotate(180deg);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: translate3d(calc(var(--sway) * -1), 110vh, 0) rotate(360deg);
+        opacity: 0.3;
+    }
 }
 </style>
