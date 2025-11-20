@@ -265,7 +265,7 @@
                                     <div class="mt-4 md:mt-6 text-center px-2">
                                         <p class="text-purple-700 text-xs md:text-sm italic line-clamp-2">"{{
                                             member.message
-                                        }}"</p>
+                                            }}"</p>
                                         <p class="text-purple-500 text-xs mt-2">Bấm để xem đầy đủ</p>
                                     </div>
                                 </div>
@@ -476,19 +476,20 @@ import {
     X,
 } from "lucide-vue-next";
 
-interface Member {
-    id: string;
-    name: string;
-    image: string | null;
-    message: string;
-}
+/* ------------------------------------------
+   🎵 FIX NHẠC MOBILE iOS + ANDROID
+------------------------------------------- */
 
-
-//Nhạc Sếp
 const musicStarted = ref(false);
 let player: any = null;
 
-// Khi API YouTube sẵn sàng
+// Tạo div player KHÔNG ẩn bằng display:none để tránh mobile chặn
+// Bạn để div này trong template theo dạng:
+// <div id="music-player"
+//      style="position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;">
+// </div>
+
+// API YouTube khi đã load
 function onYouTubeIframeAPIReady() {
     player = new YT.Player("music-player", {
         height: "1",
@@ -503,39 +504,86 @@ function onYouTubeIframeAPIReady() {
             playlist: "XDfzWrg37fA",
         },
     });
-
-
 }
 
 (window as any).onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 
-
+// Load YouTube iframe API
 onMounted(() => {
     const tag = document.createElement("script");
     tag.src = "https://www.youtube.com/iframe_api";
     document.body.appendChild(tag);
-
-    // Nếu API load nhanh hơn → dựng player luôn
-    if ((window as any).YT && (window as any).YT.Player) {
-        onYouTubeIframeAPIReady();
-    }
 });
-// Khi người dùng bấm "bắt đầu"
+
+// Khi người dùng bấm nút — mobile sẽ cho phép playVideo
 function startMusic() {
     musicStarted.value = true;
 
     setTimeout(() => {
-        if (player) {
-            player.loadVideoById("XDfzWrg37fA");
+        if (!player) return;
+
+        player.loadVideoById("XDfzWrg37fA");
+        player.playVideo();
+
+        setTimeout(() => {
             player.unMute();
-            player.playVideo();  // ⭐ cần cho mobile
-        }
+            player.setVolume(100);
+        }, 500);
     }, 300);
 }
 
 /* -------------------------------------------------
-   🔥 HÀM NÉN ẢNH MỚI — HOÀN TOÀN FIX LỖI MOBILE
+   🎨 FIRESTORE + UI (GIỮ NGUYÊN)
 --------------------------------------------------*/
+
+interface Member {
+    id: string;
+    name: string;
+    image: string | null;
+    message: string;
+}
+
+const successMessage = ref("");
+
+const members = ref<Member[]>([]);
+const showMembers = ref(false);
+const isAddDialogOpen = ref(false);
+
+const selectedMember = ref<Member | null>(null);
+const editingMember = ref<Member | null>(null);
+
+const name = ref("");
+const message = ref("");
+const imagePreview = ref<string | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+
+// Background sparkles
+const flowers = ["🌸", "🌺", "🌻", "🌷", "🌹"];
+const bgSparkles = ref([]);
+
+// Firestore realtime
+onMounted(() => {
+    const colRef = collection(db, "members");
+    onSnapshot(colRef, (snapshot) => {
+        members.value = snapshot.docs.map((d) => ({
+            id: d.id,
+            ...d.data(),
+        })) as Member[];
+    });
+
+    bgSparkles.value = Array.from({ length: 15 }).map(() => ({
+        left: `${Math.random() * 100}%`,
+        top: `${Math.random() * 100}%`,
+        duration: 3 + Math.random() * 2,
+        delay: Math.random() * 2,
+        size: 20 + Math.floor(Math.random() * 20),
+    }));
+});
+
+/* -------------------------------------------------
+   ẢNH — KHÔNG ĐỔI (TỐI ƯU MOBILE GIỮ NGUYÊN)
+--------------------------------------------------*/
+
 function compressImage(file: File): Promise<string> {
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -543,15 +591,12 @@ function compressImage(file: File): Promise<string> {
 
         reader.onload = (e) => {
             const img = new Image();
-
             img.onload = () => {
                 const canvas = document.createElement("canvas");
                 const ctx = canvas.getContext("2d");
 
                 let w = img.width;
                 let h = img.height;
-
-                // ⚡ Giảm độ phân giải xuống tối đa 600px (rất an toàn cho mobile)
                 const MAX_SIDE = 600;
 
                 if (w > h) {
@@ -570,7 +615,6 @@ function compressImage(file: File): Promise<string> {
                 canvas.height = h;
                 ctx!.drawImage(img, 0, 0, w, h);
 
-                // 🔥 Nén JPG cho đến khi <120KB
                 let quality = 0.75;
                 let base64 = canvas.toDataURL("image/jpeg", quality);
 
@@ -587,53 +631,6 @@ function compressImage(file: File): Promise<string> {
     });
 }
 
-/* -------------------------------------------------
-   ▪ STATE
---------------------------------------------------*/
-const successMessage = ref("");
-
-const members = ref<Member[]>([]);
-const showMembers = ref(false);
-const isAddDialogOpen = ref(false);
-
-const selectedMember = ref<Member | null>(null);
-const editingMember = ref<Member | null>(null);
-
-// Form
-const name = ref("");
-const message = ref("");
-const imagePreview = ref<string | null>(null);
-const fileInputRef = ref<HTMLInputElement | null>(null);
-
-// Background sparkles
-const flowers = ["🌸", "🌺", "🌻", "🌷", "🌹"];
-const bgSparkles = ref([]);
-
-/* -------------------------------------------------
-   🔄 REALTIME FIRESTORE
---------------------------------------------------*/
-onMounted(() => {
-    const colRef = collection(db, "members");
-
-    onSnapshot(colRef, (snapshot) => {
-        members.value = snapshot.docs.map((d) => ({
-            id: d.id,
-            ...d.data(),
-        })) as Member[];
-    });
-
-    bgSparkles.value = Array.from({ length: 15 }).map(() => ({
-        left: `${Math.random() * 100}%`,
-        top: `${Math.random() * 100}%`,
-        duration: 3 + Math.random() * 2,
-        delay: Math.random() * 2,
-        size: 20 + Math.floor(Math.random() * 20),
-    }));
-});
-
-/* -------------------------------------------------
-   RESET FORM KHI EDIT HOẶC MỞ DIALOG
---------------------------------------------------*/
 watch([editingMember, isAddDialogOpen], ([edit]) => {
     if (edit) {
         name.value = edit.name;
@@ -646,33 +643,22 @@ watch([editingMember, isAddDialogOpen], ([edit]) => {
     }
 });
 
-/* -------------------------------------------------
-   📤 HANDLE IMAGE UPLOAD
---------------------------------------------------*/
 async function handleImageChange(e: Event) {
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
-
-    // Nếu file không phải ảnh → chặn
     if (!file.type.startsWith("image/")) {
         alert("Ảnh không hợp lệ! Hãy chọn JPG hoặc PNG.");
         return;
     }
-
-    // Chuyển mọi định dạng → JPG (canvas tự convert)
     imagePreview.value = await compressImage(file);
 }
-
 
 function handleRemoveImage() {
     imagePreview.value = null;
     if (fileInputRef.value) fileInputRef.value.value = "";
 }
 
-/* -------------------------------------------------
-   📌 SUBMIT — ADD & UPDATE MEMBER
---------------------------------------------------*/
 async function handleSubmit() {
     if (!name.value.trim() || !message.value.trim()) {
         alert("Vui lòng nhập đầy đủ!");
@@ -694,7 +680,6 @@ async function handleSubmit() {
     }
 
     closeAddDialog();
-
     name.value = "";
     message.value = "";
     imagePreview.value = null;
@@ -703,9 +688,6 @@ async function handleSubmit() {
     setTimeout(() => (successMessage.value = ""), 2000);
 }
 
-/* -------------------------------------------------
-   ❌ DELETE
---------------------------------------------------*/
 async function handleDeleteMember(member: Member) {
     await deleteDoc(doc(db, "members", member.id));
     selectedMember.value = null;
@@ -717,9 +699,6 @@ function confirmDelete(member: Member) {
     }
 }
 
-/* -------------------------------------------------
-   UI ACTIONS
---------------------------------------------------*/
 function handleEditClick(member: Member) {
     editingMember.value = member;
     isAddDialogOpen.value = true;
@@ -734,30 +713,19 @@ function closeAddDialog() {
     isAddDialogOpen.value = false;
 }
 
-// 🌸 Random flower seeds
-const flowerCount = 25;
+// Random hoa
 onMounted(() => {
     document.querySelectorAll(".flower").forEach((el) => {
         const element = el as HTMLElement;
 
-        // Random vị trí + kích thước + tốc độ + độ lắc
         element.style.setProperty("--x", Math.random() * 100 + "%");
         element.style.setProperty("--size", 16 + Math.random() * 24 + "px");
         element.style.setProperty("--opacity", (0.4 + Math.random() * 0.6).toString());
         element.style.setProperty("--duration", (4 + Math.random() * 6) + "s");
         element.style.setProperty("--sway", (Math.random() * 120 - 60) + "px");
-
-        // Random delay giúp hoa rơi liên tục, không rơi cùng lúc
         element.style.animationDelay = (-Math.random() * 8) + "s";
     });
 });
-
-
-
-
-
-
-
 </script>
 
 <style scoped>
