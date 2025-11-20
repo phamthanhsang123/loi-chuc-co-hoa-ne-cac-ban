@@ -1,9 +1,6 @@
     <template>
-        <div style="display:none">
-            <div id="music-player"
-                style="position: fixed; bottom:0; left:0; width:1px; height:1px; opacity:0; pointer-events:none;"></div>
-
-
+        <div id="music-player"
+            style="position: fixed; bottom:0; left:0; width:20px; height:20px; opacity:0.01; z-index:-1;">
         </div>
         <div v-if="!musicStarted"
             class="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex flex-col gap-6 items-center justify-center text-white">
@@ -477,63 +474,63 @@ import {
 } from "lucide-vue-next";
 
 /* ------------------------------------------
-   🎵 FIX NHẠC MOBILE iOS + ANDROID
+   🎵 FIX NHẠC MOBILE iOS + ANDROID — CHUẨN 100%
 ------------------------------------------- */
-
 const musicStarted = ref(false);
 let player: any = null;
 
-// Tạo div player KHÔNG ẩn bằng display:none để tránh mobile chặn
-// Bạn để div này trong template theo dạng:
-// <div id="music-player"
-//      style="position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;">
-// </div>
-
-// API YouTube khi đã load
+// API ready từ YouTube
 function onYouTubeIframeAPIReady() {
     player = new YT.Player("music-player", {
-        height: "1",
-        width: "1",
+        width: "20",
+        height: "20",
         videoId: "XDfzWrg37fA",
         playerVars: {
             autoplay: 0,
             controls: 0,
             playsinline: 1,
             rel: 0,
-            loop: 1,
-            playlist: "XDfzWrg37fA",
+            modestbranding: 1
         },
+        events: {
+            onReady: (e) => {
+                console.log("YouTube READY");
+                // Không play, chỉ cue
+                e.target.cueVideoById("XDfzWrg37fA");
+            }
+        }
     });
 }
 
 (window as any).onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 
-// Load YouTube iframe API
+// Load API YouTube
 onMounted(() => {
     const tag = document.createElement("script");
     tag.src = "https://www.youtube.com/iframe_api";
     document.body.appendChild(tag);
 });
 
-// Khi người dùng bấm nút — mobile sẽ cho phép playVideo
+// play nhạc khi click — Safari cho phép
 function startMusic() {
     musicStarted.value = true;
 
-    setTimeout(() => {
-        if (!player) return;
+    if (!player) {
+        console.log("Player chưa ready");
+        return;
+    }
 
-        player.loadVideoById("XDfzWrg37fA");
+    try {
+        player.unMute();
+        player.setVolume(100);
         player.playVideo();
-
-        setTimeout(() => {
-            player.unMute();
-            player.setVolume(100);
-        }, 500);
-    }, 300);
+    } catch (e) {
+        console.log("Safari block:", e);
+    }
 }
 
 /* -------------------------------------------------
-   🎨 FIRESTORE + UI (GIỮ NGUYÊN)
+   🎨 FIRESTORE + UI (phần này giữ nguyên)
 --------------------------------------------------*/
 
 interface Member {
@@ -544,7 +541,6 @@ interface Member {
 }
 
 const successMessage = ref("");
-
 const members = ref<Member[]>([]);
 const showMembers = ref(false);
 const isAddDialogOpen = ref(false);
@@ -557,11 +553,9 @@ const message = ref("");
 const imagePreview = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
-// Background sparkles
 const flowers = ["🌸", "🌺", "🌻", "🌷", "🌹"];
 const bgSparkles = ref([]);
 
-// Firestore realtime
 onMounted(() => {
     const colRef = collection(db, "members");
     onSnapshot(colRef, (snapshot) => {
@@ -580,9 +574,6 @@ onMounted(() => {
     }));
 });
 
-/* -------------------------------------------------
-   ẢNH — KHÔNG ĐỔI (TỐI ƯU MOBILE GIỮ NGUYÊN)
---------------------------------------------------*/
 
 function compressImage(file: File): Promise<string> {
     return new Promise((resolve) => {
@@ -647,10 +638,12 @@ async function handleImageChange(e: Event) {
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
+
     if (!file.type.startsWith("image/")) {
-        alert("Ảnh không hợp lệ! Hãy chọn JPG hoặc PNG.");
+        alert("Ảnh không hợp lệ!");
         return;
     }
+
     imagePreview.value = await compressImage(file);
 }
 
@@ -680,6 +673,7 @@ async function handleSubmit() {
     }
 
     closeAddDialog();
+
     name.value = "";
     message.value = "";
     imagePreview.value = null;
@@ -713,7 +707,6 @@ function closeAddDialog() {
     isAddDialogOpen.value = false;
 }
 
-// Random hoa
 onMounted(() => {
     document.querySelectorAll(".flower").forEach((el) => {
         const element = el as HTMLElement;
